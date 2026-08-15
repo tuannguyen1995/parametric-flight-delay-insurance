@@ -10,8 +10,8 @@ class Policy:
     id: str
     owner: str
     event_description: str
-    premium: u256
-    coverage_amount: u256
+    premium: bigint
+    coverage_amount: bigint
     booking_url: str
     status_url: str
     policy_url: str
@@ -23,11 +23,11 @@ class Claim:
     id: str
     policy_id: str
     claimer: str
-    bond: u256
+    bond: bigint
     status: str
     verdict: str
-    payout_pct: u256
-    confidence: u256
+    payout_pct: bigint
+    confidence: bigint
     reason: str
 
 class Contract(gl.Contract):
@@ -57,7 +57,6 @@ class Contract(gl.Contract):
     def _treasury(self) -> Address:
         if not self.treasury_address:
             raise UserError("Treasury not set")
-        
         return Address(self.treasury_address)
 
     def _is_http(self, url: str) -> bool:
@@ -88,7 +87,7 @@ class Contract(gl.Contract):
 
         if len(event_description) < 10:
             raise UserError("event_description too short")
-            
+        
         for u, name in (
             (booking_url, "booking_url"),
             (status_url, "status_url"),
@@ -105,7 +104,7 @@ class Contract(gl.Contract):
             owner=self._addr_str(gl.message.sender_address),
             event_description=event_description,
             premium=premium,
-            coverage_amount=u256(coverage_amount),
+            coverage_amount=bigint(coverage_amount),
             booking_url=booking_url,
             status_url=status_url,
             policy_url=policy_url,
@@ -118,7 +117,6 @@ class Contract(gl.Contract):
         bond = u256(gl.message.value)
         if policy_id not in self.policies_state:
             raise UserError("Policy not found")
-            
         p = self.policies_state[policy_id]
         if p.status != "ACTIVE":
             raise UserError("Policy not active")
@@ -146,7 +144,6 @@ class Contract(gl.Contract):
     def adjudicate(self, claim_id: str) -> None:
         if claim_id not in self.claims_state:
             raise UserError("Claim not found")
-            
         c = self.claims_state[claim_id]
         if c.status != "PENDING":
             raise UserError("Claim not pending")
@@ -157,7 +154,7 @@ class Contract(gl.Contract):
         b_url = p.booking_url
         s_url = p.status_url
         p_url = p.policy_url
-        
+
         coverage = int(p.coverage_amount)
         premium = int(p.premium)
         owner = p.owner
@@ -230,12 +227,7 @@ class Contract(gl.Contract):
 
             if err1 or err2 or err3:
                 reason = ",".join([e for e in (err1, err2, err3) if e])
-                return {
-                    "verdict": "ABORT",
-                    "payout_pct": 0,
-                    "confidence": 0,
-                    "reason": reason,
-                }
+                return {"verdict": "ABORT", "payout_pct": 0, "confidence": 0, "reason": reason}
 
             prompt = f"""
 SYSTEM: You are a strict insurance claims adjudicator.
@@ -259,8 +251,7 @@ Rules:
 - APPROVED (payout_pct=100): clear covered delay/cancel matching policy
 - DENIED (payout_pct=0): not covered or no delay/loss
 - PARTIAL (1-99): partial coverage per policy
-- If evidence is insufficient or conflicting, still pick the most justified verdict
-  but set low confidence.
+- If evidence is insufficient or conflicting, still pick the most justified verdict but set low confidence.
 
 OUTPUT ONLY JSON:
 {{
@@ -286,26 +277,21 @@ OUTPUT ONLY JSON:
         def validator_fn(leader_res) -> bool:
             if not isinstance(leader_res, gl.vm.Return):
                 return False
-                
             leader = _safe_parse(leader_res.calldata)
             if leader is None:
                 return False
-
             mine_raw = leader_fn()
             mine = _safe_parse(mine_raw) if not isinstance(mine_raw, dict) else mine_raw
             if mine is None:
                 return False
-
             if leader.get("verdict") == "ABORT":
                 return mine.get("verdict") == "ABORT"
-
             return (
                 mine.get("verdict") == leader.get("verdict")
                 and mine.get("payout_pct") == leader.get("payout_pct")
             )
 
         result_raw = gl.vm.run_nondet(leader_fn, validator_fn)
-        
         result = _safe_parse(result_raw)
         if result is None:
             result = {"verdict": "ABORT", "payout_pct": 0, "confidence": 0, "reason": "adjudication_failed"}
@@ -338,7 +324,7 @@ OUTPUT ONLY JSON:
         bal = int(gl.get_balance(gl.this))
         if payout > bal:
             payout = bal
-            
+
         if payout > 0:
             gl.get_contract_at(owner_addr).emit_transfer(value=u256(payout))
 
@@ -375,7 +361,6 @@ OUTPUT ONLY JSON:
     def get_policy(self, policy_id: str) -> str:
         if policy_id not in self.policies_state:
             raise UserError("Policy not found")
-            
         p = self.policies_state[policy_id]
         return json.dumps({
             "id": p.id,
@@ -393,7 +378,6 @@ OUTPUT ONLY JSON:
     def get_claim(self, claim_id: str) -> str:
         if claim_id not in self.claims_state:
             raise UserError("Claim not found")
-            
         c = self.claims_state[claim_id]
         return json.dumps({
             "id": c.id,

@@ -49,6 +49,8 @@ class Contract(gl.Contract):
         self.policy_counter = u256(0)
         self.claim_counter = u256(0)
         self.treasury_address = treasury_addr.strip() if treasury_addr else ""
+        self.policies_state = TreeMap()
+        self.claims_state = TreeMap()
 
     def _addr_str(self, addr: Address) -> str:
         try:
@@ -74,15 +76,13 @@ class Contract(gl.Contract):
         status_url: str,
         policy_url: str,
     ) -> None:
-        premium = u256(gl.message.value)
+        premium = gl.message.value
         if premium == u256(0):
             raise UserError("Premium must be > 0")
         if coverage_amount <= u256(0):
             raise UserError("coverage_amount must be > 0")
         if coverage_amount < premium:
             raise UserError("coverage_amount should be >= premium")
-        if coverage_amount > premium * u256(10):
-            raise UserError("coverage_amount cannot exceed 10x premium to ensure solvency")
 
         event_description = event_description.strip()
         booking_url = booking_url.strip()
@@ -117,7 +117,7 @@ class Contract(gl.Contract):
 
     @gl.public.write.payable
     def file_claim(self, policy_id: str) -> None:
-        bond = u256(gl.message.value)
+        bond = gl.message.value
         if policy_id not in self.policies_state:
             raise UserError("Policy not found")
         p = self.policies_state[policy_id]
@@ -304,7 +304,7 @@ OUTPUT ONLY JSON:
                 and mine.get("confidence") == leader.get("confidence")
             )
 
-        result_raw = gl.vm.run_nondet(leader_fn, validator_fn)
+        result_raw = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
         result = _safe_parse(result_raw)
         if result is None:
             result = {"verdict": "ABORT", "payout_pct": 0, "confidence": 0, "reason": "adjudication_failed"}
@@ -334,11 +334,10 @@ OUTPUT ONLY JSON:
             return
 
         payout = (coverage * u256(pct)) // u256(100)
-        # Cap payout at 10x premium to ensure contract solvency
-        max_payout = premium * u256(10)
-        if payout > max_payout:
-            payout = max_payout
-
+        # Cap payout to contract balance to prevent over-pay
+        bal = gl.get_balance(gl.this)
+        if payout > bal:
+            payout = bal
         if payout > u256(0):
             gl.get_contract_at(owner_addr).emit_transfer(value=payout)
 
@@ -349,7 +348,8 @@ OUTPUT ONLY JSON:
             if bond > u256(0):
                 gl.get_contract_at(Address(c.claimer)).emit_transfer(value=bond)
 
-        if premium > u256(0):
+        remaining_bal = gl.get_balance(gl.this)
+        if premium > u256(0) and remaining_bal >= premium:
             gl.get_contract_at(self._treasury()).emit_transfer(value=premium)
 
         c.status = "SETTLED"
@@ -359,7 +359,7 @@ OUTPUT ONLY JSON:
         c.reason = reason
         self.claims_state[claim_id] = c
 
-        p.status = "CLAIMED"
+        p.status = "SETTLED"
         self.policies_state[c.policy_id] = p
 
     @gl.public.view
@@ -399,8 +399,8 @@ OUTPUT ONLY JSON:
             "bond": str(c.bond),
             "status": c.status,
             "verdict": c.verdict,
-            "payout_pct": str(c.payout_pct),
-            "confidence": str(c.confidence),
+            "payout_pct": c.payout_pct,
+            "confidence": c.confidence,
             "reason": c.reason
         })
 

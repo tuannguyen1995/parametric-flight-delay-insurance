@@ -37,7 +37,6 @@ This contract uses a custom `validator_fn` that ensures agreement on the **meani
 The contract is deployed and actively testable on GenLayer's StudioNet.
 
 - **Network:** `studionet`
-- **Contract Address:** `0x0D85870E741E6D086D6E32E54214AC1FfCD8DED8`
 
 ### Example Input/Output
 
@@ -45,7 +44,7 @@ The contract is deployed and actively testable on GenLayer's StudioNet.
 ```python
 # Reading the policy counter from the deployed contract
 counter = gl_client.read_contract(
-    "0x0D85870E741E6D086D6E32E54214AC1FfCD8DED8", 
+    "0xFD48923F775996c912933C30D692237e9fB616Aa",
     "get_policy_counter"
 )
 ```

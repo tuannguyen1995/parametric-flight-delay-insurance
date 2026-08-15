@@ -3,7 +3,7 @@ import json
 import time
 
 def test_flight_insurance(gl_client):
-    contract_addr = "0x0D85870E741E6D086D6E32E54214AC1FfCD8DED8"
+    contract_addr = "0xFD48923F775996c912933C30D692237e9fB616Aa"
     
     # Example input/output from studionet
     pid = gl_client.read_contract(contract_addr, "get_policy_counter")

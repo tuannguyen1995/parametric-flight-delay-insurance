@@ -10,8 +10,8 @@ class Policy:
     id: str
     owner: str
     event_description: str
-    premium: bigint
-    coverage_amount: bigint
+    premium: u256
+    coverage_amount: u256
     booking_url: str
     status_url: str
     policy_url: str
@@ -23,11 +23,11 @@ class Claim:
     id: str
     policy_id: str
     claimer: str
-    bond: bigint
+    bond: u256
     status: str
     verdict: str
-    payout_pct: int
-    confidence: int
+    payout_pct: u256
+    confidence: u256
     reason: str
 
 class Contract(gl.Contract):
@@ -41,16 +41,14 @@ class Contract(gl.Contract):
 
     policies_state: TreeMap[str, Policy]
     claims_state: TreeMap[str, Claim]
-    policy_counter: bigint
-    claim_counter: bigint
+    policy_counter: u256
+    claim_counter: u256
     treasury_address: str
 
     def __init__(self, treasury_addr: str):
-        self.policy_counter = bigint(0)
-        self.claim_counter = bigint(0)
+        self.policy_counter = u256(0)
+        self.claim_counter = u256(0)
         self.treasury_address = treasury_addr.strip() if treasury_addr else ""
-        self.policies_state = TreeMap()
-        self.claims_state = TreeMap()
 
     def _addr_str(self, addr: Address) -> str:
         try:
@@ -71,18 +69,20 @@ class Contract(gl.Contract):
     def buy_cover(
         self,
         event_description: str,
-        coverage_amount: bigint,
+        coverage_amount: u256,
         booking_url: str,
         status_url: str,
         policy_url: str,
     ) -> None:
-        premium = bigint(gl.message.value)
-        if premium == bigint(0):
+        premium = u256(gl.message.value)
+        if premium == u256(0):
             raise UserError("Premium must be > 0")
-        if coverage_amount <= bigint(0):
+        if coverage_amount <= u256(0):
             raise UserError("coverage_amount must be > 0")
         if coverage_amount < premium:
             raise UserError("coverage_amount should be >= premium")
+        if coverage_amount > premium * u256(10):
+            raise UserError("coverage_amount cannot exceed 10x premium to ensure solvency")
 
         event_description = event_description.strip()
         booking_url = booking_url.strip()
@@ -99,7 +99,7 @@ class Contract(gl.Contract):
             if not self._is_http(u):
                 raise UserError(name + " must be http(s)")
 
-        self.policy_counter += bigint(1)
+        self.policy_counter += u256(1)
         pid = str(self.policy_counter)
 
         policy = Policy(
@@ -117,14 +117,14 @@ class Contract(gl.Contract):
 
     @gl.public.write.payable
     def file_claim(self, policy_id: str) -> None:
-        bond = bigint(gl.message.value)
+        bond = u256(gl.message.value)
         if policy_id not in self.policies_state:
             raise UserError("Policy not found")
         p = self.policies_state[policy_id]
         if p.status != "ACTIVE":
             raise UserError("Policy not active")
 
-        self.claim_counter += bigint(1)
+        self.claim_counter += u256(1)
         cid = str(self.claim_counter)
 
         claim = Claim(
@@ -134,8 +134,8 @@ class Contract(gl.Contract):
             bond=bond,
             status="PENDING",
             verdict="",
-            payout_pct=0,
-            confidence=0,
+            payout_pct=u256(0),
+            confidence=u256(0),
             reason=""
         )
         self.claims_state[cid] = claim
@@ -304,7 +304,7 @@ OUTPUT ONLY JSON:
                 and mine.get("confidence") == leader.get("confidence")
             )
 
-        result_raw = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
+        result_raw = gl.vm.run_nondet(leader_fn, validator_fn)
         result = _safe_parse(result_raw)
         if result is None:
             result = {"verdict": "ABORT", "payout_pct": 0, "confidence": 0, "reason": "adjudication_failed"}
@@ -317,15 +317,15 @@ OUTPUT ONLY JSON:
         owner_addr = Address(owner)
 
         if verdict == "ABORT" or conf < 55:
-            if bond > bigint(0):
+            if bond > u256(0):
                 gl.get_contract_at(Address(c.claimer)).emit_transfer(value=bond)
-            if premium > bigint(0):
+            if premium > u256(0):
                 gl.get_contract_at(owner_addr).emit_transfer(value=premium)
 
             c.status = "REFUNDED"
             c.verdict = verdict if verdict != "ABORT" else "ABORT"
-            c.payout_pct = 0
-            c.confidence = conf
+            c.payout_pct = u256(0)
+            c.confidence = u256(conf)
             c.reason = ("low_confidence: " if conf < 55 and verdict != "ABORT" else "") + reason
             self.claims_state[claim_id] = c
 
@@ -333,24 +333,29 @@ OUTPUT ONLY JSON:
             self.policies_state[c.policy_id] = p
             return
 
-        payout = (coverage * bigint(pct)) // bigint(100)
-        if payout > bigint(0):
+        payout = (coverage * u256(pct)) // u256(100)
+        # Cap payout at 10x premium to ensure contract solvency
+        max_payout = premium * u256(10)
+        if payout > max_payout:
+            payout = max_payout
+
+        if payout > u256(0):
             gl.get_contract_at(owner_addr).emit_transfer(value=payout)
 
         if verdict == "DENIED":
-            if bond > bigint(0):
+            if bond > u256(0):
                 gl.get_contract_at(self._treasury()).emit_transfer(value=bond)
         else:
-            if bond > bigint(0):
+            if bond > u256(0):
                 gl.get_contract_at(Address(c.claimer)).emit_transfer(value=bond)
 
-        if premium > bigint(0):
+        if premium > u256(0):
             gl.get_contract_at(self._treasury()).emit_transfer(value=premium)
 
         c.status = "SETTLED"
         c.verdict = verdict
-        c.payout_pct = pct
-        c.confidence = conf
+        c.payout_pct = u256(pct)
+        c.confidence = u256(conf)
         c.reason = reason
         self.claims_state[claim_id] = c
 
@@ -358,11 +363,11 @@ OUTPUT ONLY JSON:
         self.policies_state[c.policy_id] = p
 
     @gl.public.view
-    def get_policy_counter(self) -> bigint:
+    def get_policy_counter(self) -> u256:
         return self.policy_counter
 
     @gl.public.view
-    def get_claim_counter(self) -> bigint:
+    def get_claim_counter(self) -> u256:
         return self.claim_counter
 
     @gl.public.view
@@ -394,8 +399,8 @@ OUTPUT ONLY JSON:
             "bond": str(c.bond),
             "status": c.status,
             "verdict": c.verdict,
-            "payout_pct": c.payout_pct,
-            "confidence": c.confidence,
+            "payout_pct": str(c.payout_pct),
+            "confidence": str(c.confidence),
             "reason": c.reason
         })
 

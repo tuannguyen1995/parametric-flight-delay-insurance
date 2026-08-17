@@ -1,16 +1,16 @@
 # Parametric Flight & Event Delay Insurance
 
-An **Intelligent Contract** primitive for [GenLayer](https://genlayer.com) that implements parametric insurance for flights, events, and other time-bound activities. It autonomously adjudicates claims using live web data and multi-sample LLM consensus — no human claims adjuster needed.
+An **Intelligent Contract** primitive for [GenLayer](https://genlayer.com) that implements parametric insurance for flights, events, and other time-bound activities. It autonomously adjudicates claims using live web data and multi-sample LLM consensus -- no human claims adjuster needed.
 
 ## Why GenLayer? (Why Not Solidity / EVM?)
 
 Traditional smart contracts on EVM are **purely deterministic**: they can only execute fixed `if/else` rules against on-chain data. Parametric insurance adjudication requires:
 
-1. **Live web data retrieval** — fetching real-time booking status, flight delays, and policy terms from external websites. EVM contracts cannot access the internet directly; they rely on centralized oracles that introduce trust assumptions and single points of failure.
+1. **Live web data retrieval** -- fetching real-time booking status, flight delays, and policy terms from external websites. EVM contracts cannot access the internet directly; they rely on centralized oracles that introduce trust assumptions and single points of failure.
 
-2. **Subjective / qualitative reasoning** — determining whether a specific delay or cancellation is *covered* under a natural-language insurance policy requires understanding context, matching event descriptions to policy terms, and exercising judgment. This is fundamentally impossible with deterministic `if/else` logic.
+2. **Subjective / qualitative reasoning** -- determining whether a specific delay or cancellation is *covered* under a natural-language insurance policy requires understanding context, matching event descriptions to policy terms, and exercising judgment. This is fundamentally impossible with deterministic `if/else` logic.
 
-3. **Trustless AI consensus** — GenLayer's Optimistic Democracy allows multiple independent AI validators to reach agreement on a subjective decision. A malicious leader cannot forge a favorable claim verdict because validators independently re-execute the same web fetches and LLM prompts and must reach the **same conclusion**.
+3. **Trustless AI consensus** -- GenLayer's Optimistic Democracy allows multiple independent AI validators to reach agreement on a subjective decision. A malicious leader cannot forge a favorable claim verdict because validators independently re-execute the same web fetches and LLM prompts and must reach the **same conclusion**.
 
 This contract would be **impossible to build correctly on Solidity/EVM** without trusting a centralized oracle + off-chain AI backend, which defeats the purpose of decentralization.
 
@@ -92,7 +92,7 @@ sequenceDiagram
 
 This contract uses a custom `validator_fn` that ensures agreement on the **meaning** of the decision, not just the format.
 
-1. **Leader Execution**: The leader fetches all URL data and runs the LLM prompt **twice** (multi-sampling) to extract a `verdict`, `payout_pct`, and `confidence`. If the two samples disagree on verdict or payout, the result is `ABORT` — preventing flaky or inconsistent decisions.
+1. **Leader Execution**: The leader fetches all URL data and runs the LLM prompt **twice** (multi-sampling) to extract a `verdict`, `payout_pct`, and `confidence`. If the two samples disagree on verdict or payout, the result is `ABORT` -- preventing flaky or inconsistent decisions.
 
 2. **Validation**: The validator re-runs the **exact same** data-fetching and LLM prompts locally, independently producing its own multi-sampled result.
 
@@ -123,8 +123,8 @@ This contract uses a custom `validator_fn` that ensures agreement on the **meani
 The contract is deployed and actively testable on GenLayer's StudioNet.
 
 - **Network:** `studionet`
-- **Contract Address:** `0xFD48923F775996c912933C30D692237e9fB616Aa`
-- **Explorer:** [View on GenLayer Explorer](https://explorer-studio.genlayer.com/address/0xFD48923F775996c912933C30D692237e9fB616Aa)
+- **Contract Address:** `0x5F1B06BC7ec849a16d4bE0d27FfDA9DC66315347`
+- **Explorer:** [View on GenLayer Explorer](https://explorer-studio.genlayer.com/address/0x5F1B06BC7ec849a16d4bE0d27FfDA9DC66315347)
 
 ### Example: Full Flow
 
@@ -132,14 +132,14 @@ The contract is deployed and actively testable on GenLayer's StudioNet.
 from genlayer import gl_client
 
 client = gl_client.NetworkClient(network="studionet")
-CONTRACT = "0xFD48923F775996c912933C30D692237e9fB616Aa"
+CONTRACT = "0x5F1B06BC7ec849a16d4bE0d27FfDA9DC66315347"
 
 # Step 1: Buy cover (premium = 100 wei, coverage = 1000 wei)
 tx1 = client.write_contract(
     CONTRACT,
     "buy_cover",
     args=[
-        "Vietnam Airlines VN123 HAN→SGN 2025-08-20 delay insurance",
+        "Vietnam Airlines VN123 HAN->SGN 2025-08-20 delay insurance",
         1000,
         "https://www.vietnamairlines.com/booking/VN123",
         "https://flightstats.com/flight/VN123",
@@ -227,4 +227,4 @@ python scripts/interact.py
 
 ## License
 
-MIT — see [LICENSE](LICENSE) for details.
+MIT -- see [LICENSE](LICENSE) for details.

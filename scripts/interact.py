@@ -2,7 +2,7 @@ import json
 from genlayer import gl_client
 
 # Contract address (replace with your deployed address)
-CONTRACT_ADDRESS = "0xFD48923F775996c912933C30D692237e9fB616Aa"
+CONTRACT_ADDRESS = "0x5F1B06BC7ec849a16d4bE0d27FfDA9DC66315347"
 
 # Initialize a client for the appropriate network (studionet by default)
 client = gl_client.NetworkClient(network="studionet")

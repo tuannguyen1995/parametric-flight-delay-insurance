@@ -177,7 +177,7 @@ class Contract(gl.Contract):
                     return None
 
                 verdict = data.get("verdict")
-                if verdict not in ("APPROVED", "DENIED", "PARTIAL", "ABORT"):
+                if verdict not in ("APPROVED", "DENIED", "PARTIAL"):
                     return None
 
                 pct = data.get("payout_pct", 0)
@@ -187,7 +187,7 @@ class Contract(gl.Contract):
                     return None
                 if verdict == "APPROVED" and pct != 100:
                     return None
-                if verdict in ("DENIED", "ABORT") and pct != 0:
+                if verdict == "DENIED" and pct != 0:
                     return None
                 if verdict == "PARTIAL" and not (1 <= pct <= 99):
                     return None
@@ -237,13 +237,19 @@ EVENT / COVER DESCRIPTION:
 {event_desc}
 
 BOOKING / TICKET PAGE:
-'''{booking}'''
+[BEGIN BOOKING]
+{booking}
+[END BOOKING]
 
 LIVE STATUS PAGE:
-'''{status}'''
+[BEGIN STATUS]
+{status}
+[END STATUS]
 
 POLICY TERMS:
-'''{policy}'''
+[BEGIN POLICY]
+{policy}
+[END POLICY]
 
 Decide if the insured delay/cancellation/event loss is covered.
 
@@ -251,11 +257,11 @@ Rules:
 - APPROVED (payout_pct=100): clear covered delay/cancel matching policy
 - DENIED (payout_pct=0): not covered or no delay/loss
 - PARTIAL (1-99): partial coverage per policy
-- ABORT (payout_pct=0): evidence is insufficient, conflicting, or unreadable
+- If evidence is insufficient or conflicting, still pick the most justified verdict but set low confidence.
 
 OUTPUT ONLY JSON:
 {{
-  "verdict": "APPROVED" | "DENIED" | "PARTIAL" | "ABORT",
+  "verdict": "APPROVED" | "DENIED" | "PARTIAL",
   "payout_pct": <int 0-100>,
   "confidence": <int 0-100>,
   "reason": "<max 300 chars>"
@@ -286,10 +292,16 @@ OUTPUT ONLY JSON:
                 return False
             if leader.get("verdict") == "ABORT":
                 return mine.get("verdict") == "ABORT"
-            return (
-                mine.get("verdict") == leader.get("verdict")
-                and mine.get("payout_pct") == leader.get("payout_pct")
-            )
+            if mine.get("verdict") != leader.get("verdict"):
+                return False
+            if mine.get("payout_pct") != leader.get("payout_pct"):
+                return False
+            # Bind confidence: both must agree on which side of the 55% threshold
+            leader_conf = leader.get("confidence", 0)
+            mine_conf = mine.get("confidence", 0)
+            if (leader_conf >= 55) != (mine_conf >= 55):
+                return False
+            return True
 
         result_raw = gl.vm.run_nondet(leader_fn, validator_fn)
         result = _safe_parse(result_raw)
@@ -303,17 +315,17 @@ OUTPUT ONLY JSON:
 
         owner_addr = Address(owner)
 
-        if verdict == "ABORT":
+        if verdict == "ABORT" or conf < 55:
             if bond > 0:
                 gl.get_contract_at(Address(c.claimer)).emit_transfer(value=u256(bond))
             if premium > 0:
                 gl.get_contract_at(owner_addr).emit_transfer(value=u256(premium))
 
             c.status = "REFUNDED"
-            c.verdict = verdict
+            c.verdict = verdict if verdict != "ABORT" else "ABORT"
             c.payout_pct = bigint(0)
             c.confidence = bigint(conf)
-            c.reason = reason
+            c.reason = ("low_confidence: " if conf < 55 and verdict != "ABORT" else "") + reason
             self.claims_state[claim_id] = c
 
             p.status = "ACTIVE"

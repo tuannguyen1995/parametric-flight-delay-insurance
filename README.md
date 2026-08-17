@@ -59,10 +59,10 @@ sequenceDiagram
         Note over Validator: Compare verdict + payout_pct with leader
     end
 
-    alt Consensus reached & verdict != ABORT
+    alt Consensus reached & confidence ≥ 55
         Contract->>User: Transfer payout (APPROVED/PARTIAL)
         Note over Contract: claim→SETTLED, policy→SETTLED
-    else ABORT
+    else ABORT or low confidence
         Contract->>User: Refund bond + premium
         Note over Contract: claim→REFUNDED, policy→ACTIVE
     end
@@ -103,7 +103,8 @@ This contract uses a custom `validator_fn` that ensures agreement on the **meani
 | Decision | Rationale |
 |----------|-----------|
 | **Multi-sample LLM (2×)** | Running the prompt twice and requiring both samples to agree reduces LLM hallucination and increases decision reliability. If samples disagree → ABORT (safe fallback). |
-| **ABORT fallback** | If evidence is insufficient, conflicting, unreadable, or multi-sample results mismatch, the LLM sets the verdict to ABORT. The contract refunds both the claim bond and premium. No one loses money due to system errors or unresolvable edge cases. |
+| **Confidence threshold = 55** | Below 55% confidence, the claim is refunded rather than settled. This prevents low-certainty decisions from causing irreversible payouts. The threshold balances sensitivity (catching genuine delays) vs. specificity (avoiding false approvals). |
+| **ABORT → full refund** | When web fetch fails, LLM output is unparseable, or multi-sample results mismatch, the contract refunds both the claim bond and premium. No one loses money due to system errors. |
 | **Bond mechanism** | The optional `msg.value` bond on `file_claim` deters spam claims. If the claim is DENIED, the bond goes to treasury. If APPROVED/PARTIAL/ABORT, the bond is returned to the claimer. |
 | **Treasury separation** | Premiums and denied bonds flow to a configurable treasury address rather than staying in the contract, enabling clear accounting and fund management. |
 | **3 separate URLs** | Booking, status, and policy pages are fetched separately to provide the LLM with structured, multi-source evidence. This reduces the risk of a single misleading source controlling the outcome. |

@@ -177,7 +177,7 @@ class Contract(gl.Contract):
                     return None
 
                 verdict = data.get("verdict")
-                if verdict not in ("APPROVED", "DENIED", "PARTIAL"):
+                if verdict not in ("APPROVED", "DENIED", "PARTIAL", "ABORT"):
                     return None
 
                 pct = data.get("payout_pct", 0)
@@ -187,7 +187,7 @@ class Contract(gl.Contract):
                     return None
                 if verdict == "APPROVED" and pct != 100:
                     return None
-                if verdict == "DENIED" and pct != 0:
+                if verdict in ("DENIED", "ABORT") and pct != 0:
                     return None
                 if verdict == "PARTIAL" and not (1 <= pct <= 99):
                     return None
@@ -237,13 +237,13 @@ EVENT / COVER DESCRIPTION:
 {event_desc}
 
 BOOKING / TICKET PAGE:
-"""{booking}"""
+'''{booking}'''
 
 LIVE STATUS PAGE:
-"""{status}"""
+'''{status}'''
 
 POLICY TERMS:
-"""{policy}"""
+'''{policy}'''
 
 Decide if the insured delay/cancellation/event loss is covered.
 
@@ -251,11 +251,11 @@ Rules:
 - APPROVED (payout_pct=100): clear covered delay/cancel matching policy
 - DENIED (payout_pct=0): not covered or no delay/loss
 - PARTIAL (1-99): partial coverage per policy
-- If evidence is insufficient or conflicting, still pick the most justified verdict but set low confidence.
+- ABORT (payout_pct=0): evidence is insufficient, conflicting, or unreadable
 
 OUTPUT ONLY JSON:
 {{
-  "verdict": "APPROVED" | "DENIED" | "PARTIAL",
+  "verdict": "APPROVED" | "DENIED" | "PARTIAL" | "ABORT",
   "payout_pct": <int 0-100>,
   "confidence": <int 0-100>,
   "reason": "<max 300 chars>"
@@ -303,17 +303,17 @@ OUTPUT ONLY JSON:
 
         owner_addr = Address(owner)
 
-        if verdict == "ABORT" or conf < 55:
+        if verdict == "ABORT":
             if bond > 0:
                 gl.get_contract_at(Address(c.claimer)).emit_transfer(value=u256(bond))
             if premium > 0:
                 gl.get_contract_at(owner_addr).emit_transfer(value=u256(premium))
 
             c.status = "REFUNDED"
-            c.verdict = verdict if verdict != "ABORT" else "ABORT"
+            c.verdict = verdict
             c.payout_pct = bigint(0)
             c.confidence = bigint(conf)
-            c.reason = ("low_confidence: " if conf < 55 and verdict != "ABORT" else "") + reason
+            c.reason = reason
             self.claims_state[claim_id] = c
 
             p.status = "ACTIVE"

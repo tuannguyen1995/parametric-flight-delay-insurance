@@ -1,16 +1,16 @@
 # Parametric Flight & Event Delay Insurance
 
-An **Intelligent Contract** primitive for [GenLayer](https://genlayer.com) that implements parametric insurance for flights, events, and other time-bound activities. It autonomously adjudicates claims using live web data and multi-sample LLM consensus -- no human claims adjuster needed.
+An **Intelligent Contract** primitive for [GenLayer](https://genlayer.com) that implements parametric insurance for flights, events, and other time-bound activities. It autonomously adjudicates claims using live web data and multi-sample LLM consensus — no human claims adjuster needed.
 
 ## Why GenLayer? (Why Not Solidity / EVM?)
 
 Traditional smart contracts on EVM are **purely deterministic**: they can only execute fixed `if/else` rules against on-chain data. Parametric insurance adjudication requires:
 
-1. **Live web data retrieval** -- fetching real-time booking status, flight delays, and policy terms from external websites. EVM contracts cannot access the internet directly; they rely on centralized oracles that introduce trust assumptions and single points of failure.
+1. **Live web data retrieval** — fetching real-time booking status, flight delays, and policy terms from external websites. EVM contracts cannot access the internet directly; they rely on centralized oracles that introduce trust assumptions and single points of failure.
 
-2. **Subjective / qualitative reasoning** -- determining whether a specific delay or cancellation is *covered* under a natural-language insurance policy requires understanding context, matching event descriptions to policy terms, and exercising judgment. This is fundamentally impossible with deterministic `if/else` logic.
+2. **Subjective / qualitative reasoning** — determining whether a specific delay or cancellation is *covered* under a natural-language insurance policy requires understanding context, matching event descriptions to policy terms, and exercising judgment. This is fundamentally impossible with deterministic `if/else` logic.
 
-3. **Trustless AI consensus** -- GenLayer's Optimistic Democracy allows multiple independent AI validators to reach agreement on a subjective decision. A malicious leader cannot forge a favorable claim verdict because validators independently re-execute the same web fetches and LLM prompts and must reach the **same conclusion**.
+3. **Trustless AI consensus** — GenLayer's Optimistic Democracy allows multiple independent AI validators to reach agreement on a subjective decision. A malicious leader cannot forge a favorable claim verdict because validators independently re-execute the same web fetches and LLM prompts and must reach the **same conclusion**.
 
 This contract would be **impossible to build correctly on Solidity/EVM** without trusting a centralized oracle + off-chain AI backend, which defeats the purpose of decentralization.
 
@@ -92,7 +92,7 @@ sequenceDiagram
 
 This contract uses a custom `validator_fn` that ensures agreement on the **meaning** of the decision, not just the format.
 
-1. **Leader Execution**: The leader fetches all URL data and runs the LLM prompt **twice** (multi-sampling) to extract a `verdict`, `payout_pct`, and `confidence`. If the two samples disagree on verdict or payout, the result is `ABORT` -- preventing flaky or inconsistent decisions.
+1. **Leader Execution**: The leader fetches all URL data and runs the LLM prompt **twice** (multi-sampling) to extract a `verdict`, `payout_pct`, and `confidence`. If the two samples disagree on verdict or payout, the result is `ABORT` — preventing flaky or inconsistent decisions.
 
 2. **Validation**: The validator re-runs the **exact same** data-fetching and LLM prompts locally, independently producing its own multi-sampled result.
 
@@ -139,7 +139,7 @@ tx1 = client.write_contract(
     CONTRACT,
     "buy_cover",
     args=[
-        "Vietnam Airlines VN123 HAN->SGN 2025-08-20 delay insurance",
+        "Vietnam Airlines VN123 HAN→SGN 2025-08-20 delay insurance",
         1000,
         "https://www.vietnamairlines.com/booking/VN123",
         "https://flightstats.com/flight/VN123",
@@ -164,29 +164,42 @@ tx3 = client.write_contract(
 )
 ```
 
-### Example: Reading Contract State
+### Example: Reading Contract State (Real Result on Studionet)
 
 ```python
-# Reading the policy counter from the deployed contract
-counter = client.read_contract(CONTRACT, "get_policy_counter")
-print(counter)  # => 1
+import genlayer_py
 
-# Reading a specific policy
-policy = client.read_contract(CONTRACT, "get_policy", "1")
+account = genlayer_py.create_account()
+client = genlayer_py.create_client(genlayer_py.studionet, account=account)
+CONTRACT = "0x5F1B06BC7ec849a16d4bE0d27FfDA9DC66315347"
+
+# Real query against deployed contract:
+counter = client.read_contract(address=CONTRACT, function_name="get_policy_counter")
+print(counter)
+# REAL RESULT: 0
+
+treasury = client.read_contract(address=CONTRACT, function_name="get_treasury")
+print(treasury)
+# REAL RESULT: "0x36CBA5d4d4D0A2DC6D57E81d8E82385A08C8aD36"
+```
+
+### Expected Output after Policy Purchase & Adjudication (Illustrative Example)
+
+```python
+# Reading a policy after buy_cover (Expected Output):
+policy = client.read_contract(address=CONTRACT, function_name="get_policy", args=["1"])
 print(policy)
-# => {"id": "1", "owner": "0x...", "event_description": "Vietnam Airlines ...",
+# EXPECTED OUTPUT: {"id": "1", "owner": "0x...", "event_description": "Flight VN123 delay",
 #     "premium": "100", "coverage_amount": "1000", "booking_url": "https://...",
 #     "status_url": "https://...", "policy_url": "https://...", "status": "ACTIVE"}
 
-# Reading a specific claim after adjudication
-claim = client.read_contract(CONTRACT, "get_claim", "1")
+# Reading a claim after adjudication (Expected Output):
+claim = client.read_contract(address=CONTRACT, function_name="get_claim", args=["1"])
 print(claim)
-# => {"id": "1", "policy_id": "1", "claimer": "0x...", "bond": "10",
+# EXPECTED OUTPUT: {"id": "1", "policy_id": "1", "claimer": "0x...", "bond": "10",
 #     "status": "SETTLED", "verdict": "APPROVED", "payout_pct": "100",
 #     "confidence": "85", "reason": "Flight VN123 delayed 3h, covered under policy terms"}
 ```
-
-*(The claim output above is an illustrative example showing expected format. Actual verdict depends on live web data at adjudication time.)*
 
 ## Project Structure
 
@@ -227,4 +240,4 @@ python scripts/interact.py
 
 ## License
 
-MIT -- see [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](LICENSE) for details.

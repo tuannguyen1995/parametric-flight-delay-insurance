@@ -1,7 +1,7 @@
 import pytest
 import genlayer_py
 
-CONTRACT_ADDRESS = "0x5F1B06BC7ec849a16d4bE0d27FfDA9DC66315347"
+CONTRACT_ADDRESS = "0x8FE728DB4E114a3Cb3704E8F00c52e9Dff69b955"
 
 class TestViewMethods:
     """Tests executing against the deployed contract on studionet."""

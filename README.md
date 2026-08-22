@@ -127,8 +127,8 @@ This contract uses a custom `validator_fn` that ensures agreement on the **meani
 The contract is deployed and actively testable on GenLayer's StudioNet.
 
 - **Network:** `studionet`
-- **Contract Address:** `0x5F1B06BC7ec849a16d4bE0d27FfDA9DC66315347`
-- **Explorer:** [View on GenLayer Explorer](https://explorer-studio.genlayer.com/address/0x5F1B06BC7ec849a16d4bE0d27FfDA9DC66315347)
+- **Contract Address:** `0x8FE728DB4E114a3Cb3704E8F00c52e9Dff69b955`
+- **Explorer:** [View on GenLayer Explorer](https://explorer-studio.genlayer.com/address/0x8FE728DB4E114a3Cb3704E8F00c52e9Dff69b955)
 
 ### Example: Full Flow
 
@@ -136,7 +136,7 @@ The contract is deployed and actively testable on GenLayer's StudioNet.
 from genlayer import gl_client
 
 client = gl_client.NetworkClient(network="studionet")
-CONTRACT = "0x5F1B06BC7ec849a16d4bE0d27FfDA9DC66315347"
+CONTRACT = "0x8FE728DB4E114a3Cb3704E8F00c52e9Dff69b955"
 
 # Step 1: Buy cover (premium = 100 wei, coverage = 1000 wei)
 tx1 = client.write_contract(
@@ -175,7 +175,7 @@ import genlayer_py
 
 account = genlayer_py.create_account()
 client = genlayer_py.create_client(genlayer_py.studionet, account=account)
-CONTRACT = "0x5F1B06BC7ec849a16d4bE0d27FfDA9DC66315347"
+CONTRACT = "0x8FE728DB4E114a3Cb3704E8F00c52e9Dff69b955"
 
 # Real query against deployed contract:
 counter = client.read_contract(address=CONTRACT, function_name="get_policy_counter")

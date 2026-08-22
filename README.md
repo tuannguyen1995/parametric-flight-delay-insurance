@@ -74,7 +74,8 @@ sequenceDiagram
 
 | Method | Params | Description |
 |--------|--------|-------------|
-| `buy_cover` | `event_description: str`, `coverage_amount: int`, `booking_url: str`, `status_url: str`, `policy_url: str` | Buy insurance cover. `msg.value` sets the premium. All URLs must be `http(s)`. |
+| `deposit_liquidity` | None (`msg.value`) | Deposit funds into contract reserve pool to collateralize policies. |
+| `buy_cover` | `event_description: str`, `coverage_amount: int`, `booking_url: str`, `status_url: str`, `policy_url: str` | Buy insurance cover. `msg.value` sets the premium. Enforces contract solvency (`balance >= reserved_coverage + coverage + bonds`). |
 | `file_claim` | `policy_id: str` | Trigger a claim for an active policy. Optional `msg.value` acts as a spam-deterrent bond. |
 | `adjudicate` | `claim_id: str` | Run GenLayer consensus to validate the claim and settle the payout or refund. |
 
@@ -83,10 +84,11 @@ sequenceDiagram
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `get_policy(policy_id)` | `str` (JSON) | Policy details including status, owner, URLs, amounts |
-| `get_claim(claim_id)` | `str` (JSON) | Claim details including verdict, payout_pct, confidence, reason |
+| `get_claim(claim_id)` | `str` (JSON) | Claim details including verdict, payout_pct, payout_amount, confidence, reason |
 | `get_policy_counter()` | `int` | Total number of policies created |
 | `get_claim_counter()` | `int` | Total number of claims filed |
 | `get_treasury()` | `str` | Treasury wallet address |
+| `get_reserves_info()` | `str` (JSON) | Solvency reserve accounting: total balance, reserved coverage, bonds held, free liquidity |
 
 ## How Consensus / The Validator Works
 
@@ -98,16 +100,18 @@ This contract uses a custom `validator_fn` that ensures agreement on the **meani
 
 3. **Meaningful Agreement**: The validator does **not** simply check if the leader's output is valid JSON. Instead, it strictly enforces that its own independent `verdict` and `payout_pct` **exactly match** the leader's. If the validator's LLM reaches a different conclusion based on the evidence, the transaction is rejected. This prevents malicious leaders from forging favorable claims.
 
-## Design Decisions
+## Fund Accounting & Solvency Safeguards
 
-| Decision | Rationale |
-|----------|-----------|
+| Safeguard | Mechanism & Rationale |
+|-----------|-----------------------|
+| **Enforceable Solvency Accounting** | Tracks `total_reserved_coverage` and `total_bonds_held`. `buy_cover` checks `balance >= total_reserved_coverage + new_coverage + total_bonds_held`. One policy cannot consume funds collateralized for others. |
+| **Explicit Payout Recording** | Every settlement records `payout_amount` explicitly in the `Claim` state and JSON outputs. |
+| **Policy Termination on ABORT** | On `ABORT`, the premium and bond are refunded, and the policy status becomes `TERMINATED`. This eliminates free coverage re-activation exploits. |
+| **Liquidity Pool Deposits** | Underwriters or contract owners can call `deposit_liquidity()` to deposit collateral funds to back larger insurance coverage pools. |
 | **Multi-sample LLM (2×)** | Running the prompt twice and requiring both samples to agree reduces LLM hallucination and increases decision reliability. If samples disagree → ABORT (safe fallback). |
-| **Confidence threshold = 55** | Below 55% confidence, the claim is refunded rather than settled. This prevents low-certainty decisions from causing irreversible payouts. The threshold balances sensitivity (catching genuine delays) vs. specificity (avoiding false approvals). |
-| **ABORT → full refund** | When web fetch fails, LLM output is unparseable, or multi-sample results mismatch, the contract refunds both the claim bond and premium. No one loses money due to system errors. |
+| **Confidence threshold = 55** | Below 55% confidence, the claim resolves to `ABORT` at consensus level, executing a full refund and policy termination. |
 | **Bond mechanism** | The optional `msg.value` bond on `file_claim` deters spam claims. If the claim is DENIED, the bond goes to treasury. If APPROVED/PARTIAL/ABORT, the bond is returned to the claimer. |
 | **Treasury separation** | Premiums and denied bonds flow to a configurable treasury address rather than staying in the contract, enabling clear accounting and fund management. |
-| **3 separate URLs** | Booking, status, and policy pages are fetched separately to provide the LLM with structured, multi-source evidence. This reduces the risk of a single misleading source controlling the outcome. |
 
 ## Limitations & Edge Cases
 
